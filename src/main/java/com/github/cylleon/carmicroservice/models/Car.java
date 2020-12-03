@@ -1,13 +1,15 @@
 package com.github.cylleon.carmicroservice.models;
 
 import com.github.cylleon.carmicroservice.models.enums.FuelType;
-import com.github.cylleon.carmicroservice.models.validators.CorrectCarName;
-import com.github.cylleon.carmicroservice.models.validators.CorrectCarPrice;
-import com.github.cylleon.carmicroservice.models.validators.CorrectCarYearOfManufacture;
 import lombok.*;
 
-import javax.persistence.*;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+import javax.validation.constraints.DecimalMin;
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Pattern;
 import java.math.BigDecimal;
 
 @Entity(name = "car")
@@ -23,18 +25,18 @@ public class Car {
     private Long id;
     @Setter
     @NotNull
-    @CorrectCarName
+    @Pattern(regexp = "^[_A-z0-9]*$", message = "Incorrect name")
     private String name;
     @Setter
     @NotNull
     private String model;
     @Setter
     @NotNull
-    @CorrectCarPrice
+    @DecimalMin(value = "1", message = "Incorrect price")
     private BigDecimal price;
     @Setter
     @NotNull
-    @CorrectCarYearOfManufacture
+    @DecimalMin(value = "2005", message = "Incorrect year of manufacture")
     private int yearOfManufacture;
     @Setter
     @NotNull
