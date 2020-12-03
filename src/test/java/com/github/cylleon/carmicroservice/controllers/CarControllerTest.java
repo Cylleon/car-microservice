@@ -1,109 +1,104 @@
 package com.github.cylleon.carmicroservice.controllers;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.cylleon.carmicroservice.models.Car;
 import com.github.cylleon.carmicroservice.models.enums.FuelType;
 import com.github.cylleon.carmicroservice.repositories.CarRepository;
 import com.github.cylleon.carmicroservice.utils.CarModelAssembler;
-import org.junit.Assert;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.hateoas.EntityModel;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-@ExtendWith(MockitoExtension.class)
+import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@Import(CarController.class)
+@ContextConfiguration(classes = {CarModelAssembler.class})
+@WebMvcTest(controllers = CarController.class)
 class CarControllerTest {
 
-    CarRepository carRepository;
-    CarController carController;
+    @MockBean
+    private CarRepository carRepository;
 
-    @BeforeEach
-    public void setup() {
-        carRepository = Mockito.mock(CarRepository.class);
-        CarModelAssembler carModelAssembler = new CarModelAssembler();
-        carController = new CarController(carRepository, carModelAssembler);
-    }
+    @Autowired
+    private MockMvc mockMvc;
 
     @Test
-    void findAll() {
-        List<Car> cars = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            Car car = new Car();
-            car.setId((long) i);
-            car.setName("CarName");
-            car.setModel("Car");
-            car.setPrice(BigDecimal.valueOf(10000 * i));
-            car.setYearOfManufacture(2006 + i);
-            car.setFuelType(FuelType.DIESEL);
-            cars.add(car);
-        }
+    void findAll() throws Exception {
+        List<Car> cars = List.of(
+                Car.builder().build(),
+                Car.builder().build(),
+                Car.builder().build(),
+                Car.builder().build(),
+                Car.builder().build()
+        );
         Mockito.when(carRepository.findAll()).thenReturn(cars);
 
-        List<Car> result = new ArrayList<>();
-        for (EntityModel<Car> carEntityModel : carController.findAll()) {
-            result.add(carEntityModel.getContent());
-        }
-
-        Mockito.verify(carRepository, Mockito.atMostOnce()).findAll();
-        Assert.assertEquals(cars, result);
+        mockMvc.perform(get("/cars"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$._embedded.carList", hasSize(5)));
     }
 
     @Test
-    void findOne() {
+    void findOne() throws Exception {
         Long id = 10L;
-        Car car = new Car();
-        car.setId(id);
-        car.setName("CarName");
-        car.setModel("Car");
-        car.setPrice(BigDecimal.valueOf(10000));
-        car.setYearOfManufacture(2014);
-        car.setFuelType(FuelType.PETROL);
+        Car car = createCar(id, "CarName", BigDecimal.valueOf(10000), 2014);
 
         Mockito.when(carRepository.findById(Mockito.eq(id))).thenReturn(Optional.of(car));
 
-        EntityModel<Car> result = carController.findOne(id);
-
-        Mockito.verify(carRepository, Mockito.atMostOnce()).findById(Mockito.eq(id));
-        Assert.assertEquals(car, result.getContent());
+        mockMvc.perform(get("/cars/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", hasToString(String.valueOf(id))));
     }
 
     @Test
-    void postCar() {
-        Car car = new Car();
-        car.setId(5L);
-        car.setName("CarName");
-        car.setModel("Car");
-        car.setPrice(BigDecimal.valueOf(10000));
-        car.setYearOfManufacture(2014);
-        car.setFuelType(FuelType.PETROL);
+    void postCar() throws Exception {
+        Long id = 5L;
+        Car car = createCar(id, "CarName", BigDecimal.valueOf(10000), 2014);
 
         Mockito.when(carRepository.save(Mockito.eq(car))).thenReturn(car);
 
-        ResponseEntity<EntityModel<Car>> result = carController.postCar(car);
+        ObjectMapper mapper = new ObjectMapper();
+
+        mockMvc.perform(post("/cars")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(car)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id", hasToString(String.valueOf(id))));
 
         Mockito.verify(carRepository, Mockito.atMostOnce()).save(Mockito.eq(car));
-
-        Assert.assertEquals(HttpStatus.CREATED, result.getStatusCode());
-        Assert.assertEquals(car, result.getBody().getContent());
     }
 
     @Test
-    void deleteCar() {
+    void deleteCar() throws Exception {
         Long id = 7L;
 
-        ResponseEntity<EntityModel<Car>> result = carController.deleteCar(id);
+        mockMvc.perform(delete("/cars/" + id))
+                .andExpect(status().isNoContent());
 
         Mockito.verify(carRepository, Mockito.atMostOnce()).deleteById(Mockito.eq(id));
+    }
 
-        Assert.assertEquals(HttpStatus.NO_CONTENT, result.getStatusCode());
-        Assert.assertNull(result.getBody());
+    private Car createCar(Long id, String carName, BigDecimal carPrice, int yearOfManufacture) {
+        return Car.builder()
+                .id(id)
+                .name(carName)
+                .price(carPrice)
+                .yearOfManufacture(yearOfManufacture)
+                .model("Car")
+                .fuelType(FuelType.PETROL)
+                .build();
     }
 }
